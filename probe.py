@@ -42,10 +42,12 @@ class HallucinationProbe(nn.Module):
         Args:
             input_dim: Feature vector dimensionality.
         """
+        torch.manual_seed(0)  # reproducible weight initialisation
         self._net = nn.Sequential(
-            nn.Linear(input_dim, 256),
+            nn.Linear(input_dim, 128),
             nn.ReLU(),
-            nn.Linear(256, 1),
+            nn.Dropout(0.3),
+            nn.Linear(128, 1),
         )
 
     # ------------------------------------------------------------------
@@ -95,15 +97,22 @@ class HallucinationProbe(nn.Module):
         # ------------------------------------------------------------------
         # STUDENT: Replace or extend the training loop below.
         # ------------------------------------------------------------------
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        torch.manual_seed(0)  # reproducible shuffling and dropout
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
 
         self.train()
-        for _ in range(200):
-            optimizer.zero_grad()
-            logits = self(X_t)
-            loss = criterion(logits, y_t)
-            loss.backward()
-            optimizer.step()
+        batch_size = 64
+        n = X_t.shape[0]
+        gen = torch.Generator().manual_seed(0)
+        for epoch in range(70):
+            perm = torch.randperm(n, generator=gen)
+            for i in range(0, n, batch_size):
+                idx = perm[i : i + batch_size]
+                optimizer.zero_grad()
+                logits = self(X_t[idx])
+                loss = criterion(logits, y_t[idx])
+                loss.backward()
+                optimizer.step()
         # ------------------------------------------------------------------
 
         self.eval()

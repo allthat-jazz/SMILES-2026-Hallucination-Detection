@@ -41,21 +41,19 @@ def aggregate(
         Replace or extend the skeleton below with alternative layer selection,
         token pooling (mean, max, weighted), or multi-layer fusion strategies.
     """
-    # ------------------------------------------------------------------
-    # STUDENT: Replace or extend the aggregation below.
-    # ------------------------------------------------------------------
+    # Two pools at two late layers: the last real token (final commitment)
+    # and the mean over the last 24 real tokens (a rough proxy for the
+    # response region — full-sequence mean is dominated by the long prompt).
+    real = attention_mask.nonzero(as_tuple=False).flatten()
+    last_pos = int(real[-1].item())
+    tail = real[-min(24, real.shape[0]):]
 
-    # Default: last real token of the final transformer layer.
-    layer = hidden_states[-1]          # (seq_len, hidden_dim)
-
-    # Find the index of the last real (non-padding) token.
-    real_positions = attention_mask.nonzero(as_tuple=False)  # (n_real, 1)
-    last_pos = int(real_positions[-1].item())                 # scalar index
-
-    feature = layer[last_pos]          # (hidden_dim,)
-
-    return feature
-    # ------------------------------------------------------------------
+    pieces = []
+    for li in (-1, -5):
+        layer = hidden_states[li]
+        pieces.append(layer[last_pos])
+        pieces.append(layer[tail].mean(dim=0))
+    return torch.cat(pieces, dim=0)
 
 
 def extract_geometric_features(
@@ -81,12 +79,22 @@ def extract_geometric_features(
         norms, inter-layer cosine similarity (representation drift), or
         sequence length.
     """
-    # ------------------------------------------------------------------
-    # STUDENT: Replace or extend the geometric feature extraction below.
-    # ------------------------------------------------------------------
+    # Two cheap geometric signals at the last real token:
+    # (1) per-layer activation norms — captures "energy" of each layer;
+    # (2) cosine similarity between consecutive layers — captures how much
+    #     the model's representation drifts from one layer to the next.
+    mask = attention_mask.bool()
+    last_pos = int(attention_mask.nonzero(as_tuple=False)[-1].item())
 
-    # Placeholder: returns an empty tensor (no geometric features).
-    return torch.zeros(0)
+    real = hidden_states[:, mask, :]                      # (n_layers, n_real, h)
+    norms = real.norm(dim=-1).mean(dim=-1)                # (n_layers,)
+
+    layer_vecs = hidden_states[:, last_pos, :]            # (n_layers, h)
+    drift = torch.nn.functional.cosine_similarity(
+        layer_vecs[1:], layer_vecs[:-1], dim=-1
+    )                                                     # (n_layers - 1,)
+
+    return torch.cat([norms, drift], dim=0).float()
 
 
 def aggregation_and_feature_extraction(
