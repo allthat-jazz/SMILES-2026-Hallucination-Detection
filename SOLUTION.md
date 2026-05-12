@@ -1,4 +1,17 @@
 # SOLUTION
+## Reproducibility
+
+Run in Google Colab (free T4) or any machine with a CUDA GPU:
+
+```bash
+git clone <repo-url>
+cd SMILES-HALLUCINATION-DETECTION
+pip install -r requirements.txt
+python solution.py
+```
+
+This produces `results.json` (evaluation summary) and `predictions.csv`
+(labels for `data/test.csv`).
 
 ## Determinism. 
 All random sources used by the probe are seeded:
