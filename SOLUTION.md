@@ -5,7 +5,7 @@ Run in Google Colab (free T4) or any machine with a CUDA GPU:
 
 ```bash
 git clone https://github.com/allthat-jazz/SMILES-2026-Hallucination-Detection
-cd SMILES-HALLUCINATION-DETECTION
+cd SMILES-2026-Hallucination-Detection
 pip install -r requirements.txt
 python solution.py
 ```
